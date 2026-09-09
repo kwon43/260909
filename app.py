@@ -3,6 +3,11 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
+
+# ==========================================
+# 기본 설정
+# ==========================================
+
 st.set_page_config(
     page_title="기온 예측기",
     page_icon="🌡️",
@@ -15,8 +20,13 @@ CUTOFF_YEAR = 2025
 MIN_DAYS = 300
 
 
+# ==========================================
+# 데이터 불러오기
+# ==========================================
+
 @st.cache_data
 def load_data():
+
     df = pd.read_csv(
         DATA_URL,
         encoding="utf-8-sig"
@@ -41,22 +51,26 @@ def load_data():
     return df
 
 
-# -----------------------------
-# 데이터 불러오기
-# -----------------------------
+# ==========================================
+# 데이터 불러오기 오류 처리
+# ==========================================
 
 try:
+
     df = load_data()
 
 except Exception as e:
-    st.error("데이터를 불러오는 중 오류가 발생했습니다.")
+
+    st.error("❌ 데이터를 불러오는 중 오류가 발생했습니다.")
+
     st.exception(e)
+
     st.stop()
 
 
-# -----------------------------
+# ==========================================
 # 연도별 평균기온 계산
-# -----------------------------
+# ==========================================
 
 yearly = (
     df[df["연도"] <= CUTOFF_YEAR]
@@ -69,7 +83,10 @@ yearly = (
 )
 
 
-# 관측일수가 300일 미만인 해 제외
+# ==========================================
+# 관측일 300일 미만인 연도 제외
+# ==========================================
+
 yearly = yearly[
     yearly["관측일수"] >= MIN_DAYS
 ].copy()
@@ -81,17 +98,31 @@ yearly = yearly.sort_values(
 ).reset_index(drop=True)
 
 
+# ==========================================
+# 데이터가 부족한 경우
+# ==========================================
+
 if len(yearly) < 2:
-    st.error("회귀 분석에 사용할 데이터가 충분하지 않습니다.")
+
+    st.error(
+        "회귀 분석을 할 수 있는 데이터가 충분하지 않습니다."
+    )
+
     st.stop()
 
 
-# -----------------------------
+# ==========================================
 # 전체 기간 회귀분석
-# -----------------------------
+# ==========================================
 
-x_all = yearly["연도"].to_numpy(dtype=float)
-y_all = yearly["연평균기온"].to_numpy(dtype=float)
+x_all = yearly["연도"].to_numpy(
+    dtype=float
+)
+
+y_all = yearly["연평균기온"].to_numpy(
+    dtype=float
+)
+
 
 slope_all, intercept_all = np.polyfit(
     x_all,
@@ -99,24 +130,32 @@ slope_all, intercept_all = np.polyfit(
     1
 )
 
+
+# 상관계수
 correlation = np.corrcoef(
     x_all,
     y_all
 )[0, 1]
 
 
-# -----------------------------
+# ==========================================
 # 전체 기간 정보
-# -----------------------------
+# ==========================================
 
-start_year = int(yearly["연도"].min())
-end_year = int(yearly["연도"].max())
+start_year = int(
+    yearly["연도"].min()
+)
+
+end_year = int(
+    yearly["연도"].max()
+)
+
 year_count = len(yearly)
 
 
-# -----------------------------
+# ==========================================
 # 최근 20년 데이터
-# -----------------------------
+# ==========================================
 
 recent_start_year = end_year - 19
 
@@ -127,8 +166,13 @@ recent = yearly[
 
 if len(recent) >= 2:
 
-    x_recent = recent["연도"].to_numpy(dtype=float)
-    y_recent = recent["연평균기온"].to_numpy(dtype=float)
+    x_recent = recent["연도"].to_numpy(
+        dtype=float
+    )
+
+    y_recent = recent["연평균기온"].to_numpy(
+        dtype=float
+    )
 
     slope_recent, intercept_recent = np.polyfit(
         x_recent,
@@ -142,172 +186,90 @@ else:
     intercept_recent = np.nan
 
 
-# -----------------------------
-# 기울기를 100년 기준으로 변환
-# -----------------------------
+# ==========================================
+# 100년에 몇 도 오르는가 계산
+# ==========================================
 
 rise_all_100 = slope_all * 100
 
+
 if not np.isnan(slope_recent):
+
     rise_recent_100 = slope_recent * 100
+
 else:
+
     rise_recent_100 = np.nan
 
 
-# -----------------------------
+# ==========================================
 # 제목
-# -----------------------------
+# ==========================================
 
-st.title("🌡️ 서울 기온 예측기")
+st.title("🌡️ 기온 예측기")
 
 st.write(
-    "서울의 과거 기온 데이터를 이용하여 연평균기온의 변화 추세를 분석하고 "
-    "회귀 직선을 이용하여 미래의 예상 연평균기온을 확인합니다."
+    "서울의 연평균기온 데이터를 이용하여 "
+    "기온 변화 추세를 분석하고 미래의 예상 기온을 확인합니다."
 )
 
 
-# -----------------------------
+# ==========================================
 # 기온 상승 속도
-# -----------------------------
+# ==========================================
 
-st.subheader("🔥 기온 상승 속도")
+st.header("🔥 기온 상승 속도")
 
-st.markdown(
-    f"""
-    <div style="
-        background-color:#eef6ff;
-        padding:35px;
-        border-radius:20px;
-        text-align:center;
-        margin:20px 0;
-    ">
-
-        <div style="
-            font-size:25px;
-            font-weight:bold;
-        ">
-            전체 기간 기준
-        </div>
-
-        <div style="
-            font-size:55px;
-            font-weight:bold;
-            margin-top:10px;
-        ">
-            100년에 {rise_all_100:+.2f} °C
-        </div>
-
-        <div style="
-            font-size:18px;
-            margin-top:10px;
-        ">
-            연평균기온 변화 속도
-        </div>
-
-    </div>
-    """,
-    unsafe_allow_html=True
+st.metric(
+    label="전체 기간 기준 100년에 몇 °C 오르는가",
+    value=f"{rise_all_100:+.2f} °C"
 )
 
 
-# -----------------------------
+# ==========================================
 # 전체 기간 vs 최근 20년
-# -----------------------------
+# ==========================================
 
-st.subheader("📊 전체 기간과 최근 20년 비교")
+st.header("📊 전체 기간과 최근 20년 비교")
 
 col1, col2 = st.columns(2)
 
 
 with col1:
 
-    st.markdown(
-        f"""
-        <div style="
-            border:2px solid #dddddd;
-            padding:30px;
-            border-radius:20px;
-            text-align:center;
-        ">
+    st.subheader("🌏 전체 기간")
 
-            <div style="
-                font-size:24px;
-                font-weight:bold;
-            ">
-                🌏 전체 기간
-            </div>
+    st.metric(
+        label="100년 기준 기온 변화",
+        value=f"{rise_all_100:+.2f} °C"
+    )
 
-            <div style="
-                font-size:42px;
-                font-weight:bold;
-                margin-top:15px;
-            ">
-                {rise_all_100:+.2f} °C
-            </div>
+    st.write(
+        f"사용 기간: **{start_year}년 ~ {end_year}년**"
+    )
 
-            <div style="
-                font-size:17px;
-                margin-top:10px;
-            ">
-                100년에 변화하는 기온
-            </div>
-
-            <div style="
-                margin-top:10px;
-            ">
-                {start_year}년 ~ {end_year}년
-            </div>
-
-        </div>
-        """,
-        unsafe_allow_html=True
+    st.write(
+        f"사용 연도: **{year_count}개**"
     )
 
 
 with col2:
 
+    st.subheader("🔥 최근 20년")
+
     if not np.isnan(rise_recent_100):
 
-        st.markdown(
-            f"""
-            <div style="
-                border:2px solid #dddddd;
-                padding:30px;
-                border-radius:20px;
-                text-align:center;
-            ">
+        st.metric(
+            label="100년 기준 기온 변화",
+            value=f"{rise_recent_100:+.2f} °C"
+        )
 
-                <div style="
-                    font-size:24px;
-                    font-weight:bold;
-                ">
-                    🔥 최근 20년
-                </div>
+        st.write(
+            f"사용 기간: **{recent_start_year}년 ~ {end_year}년**"
+        )
 
-                <div style="
-                    font-size:42px;
-                    font-weight:bold;
-                    margin-top:15px;
-                ">
-                    {rise_recent_100:+.2f} °C
-                </div>
-
-                <div style="
-                    font-size:17px;
-                    margin-top:10px;
-                ">
-                    100년에 변화하는 기온
-                </div>
-
-                <div style="
-                    margin-top:10px;
-                ">
-                    {recent_start_year}년 ~ {end_year}년
-                </div>
-
-            </div>
-            """,
-            unsafe_allow_html=True
+        st.write(
+            f"사용 연도: **{len(recent)}개**"
         )
 
     else:
@@ -317,42 +279,45 @@ with col2:
         )
 
 
-# -----------------------------
-# 상승 속도 비교
-# -----------------------------
+# ==========================================
+# 상승 속도 차이
+# ==========================================
 
 if not np.isnan(rise_recent_100):
 
-    difference = rise_recent_100 - rise_all_100
+    difference = (
+        rise_recent_100
+        - rise_all_100
+    )
 
-    st.write("")
+    st.subheader("🔍 상승 속도 차이")
 
     if difference > 0:
 
         st.success(
-            f"📈 최근 20년의 기온 상승 속도가 전체 기간보다 "
-            f"100년 기준 {difference:.2f}°C 더 빠릅니다."
+            f"최근 20년의 상승 속도가 전체 기간보다 "
+            f"100년 기준 **{difference:.2f}°C 더 빠릅니다.**"
         )
 
     elif difference < 0:
 
         st.info(
-            f"📉 최근 20년의 기온 상승 속도가 전체 기간보다 "
-            f"100년 기준 {abs(difference):.2f}°C 더 느립니다."
+            f"최근 20년의 상승 속도가 전체 기간보다 "
+            f"100년 기준 **{abs(difference):.2f}°C 더 느립니다.**"
         )
 
     else:
 
         st.info(
-            "최근 20년과 전체 기간의 기온 상승 속도가 같습니다."
+            "최근 20년과 전체 기간의 상승 속도가 같습니다."
         )
 
 
-# -----------------------------
+# ==========================================
 # 예상 연도 선택
-# -----------------------------
+# ==========================================
 
-st.subheader("🔎 예상 기온 확인")
+st.header("🔎 기온 예측")
 
 selected_year = st.slider(
     "예상할 연도를 선택하세요.",
@@ -370,66 +335,51 @@ selected_temp = (
 )
 
 
-# -----------------------------
-# 예상 기온 크게 표시
-# -----------------------------
+# ==========================================
+# 예상 기온
+# ==========================================
 
-st.markdown(
-    f"""
-    <div style="
-        background-color:#fff7e6;
-        padding:35px;
-        border-radius:20px;
-        text-align:center;
-        margin:20px 0;
-    ">
-
-        <div style="
-            font-size:26px;
-            font-weight:bold;
-        ">
-            {selected_year}년 예상 연평균기온
-        </div>
-
-        <div style="
-            font-size:60px;
-            font-weight:bold;
-            margin-top:10px;
-        ">
-            {selected_temp:.2f} °C
-        </div>
-
-    </div>
-    """,
-    unsafe_allow_html=True
+st.metric(
+    label=f"{selected_year}년 예상 연평균기온",
+    value=f"{selected_temp:.2f} °C"
 )
 
 
-# -----------------------------
+# ==========================================
 # 주요 정보
-# -----------------------------
+# ==========================================
+
+st.header("📌 회귀 분석에 사용된 데이터")
 
 col1, col2, col3, col4 = st.columns(4)
 
+
 with col1:
+
     st.metric(
-        "회귀에 사용한 연도 수",
+        "사용 연도 수",
         f"{year_count}개"
     )
 
+
 with col2:
+
     st.metric(
         "시작 연도",
         f"{start_year}년"
     )
 
+
 with col3:
+
     st.metric(
         "끝 연도",
         f"{end_year}년"
     )
 
+
 with col4:
+
     st.metric(
         "상관계수",
         f"{correlation:.3f}"
@@ -437,22 +387,25 @@ with col4:
 
 
 st.info(
-    f"📌 회귀 직선을 만든 기간은 "
+    f"📈 회귀 직선을 만든 기간은 "
     f"**{start_year}년 ~ {end_year}년**이며 "
     f"총 **{year_count}개 연도**를 사용했습니다."
 )
 
 
-# -----------------------------
-# 그래프
-# -----------------------------
+# ==========================================
+# 산점도 + 회귀 직선
+# ==========================================
 
-st.subheader("📈 연도별 평균기온과 회귀 직선")
+st.header("📈 연도별 평균기온과 회귀 직선")
 
 fig = go.Figure()
 
 
+# ------------------------------------------
 # 실제 연평균기온 산점도
+# ------------------------------------------
+
 fig.add_trace(
     go.Scatter(
         x=yearly["연도"],
@@ -475,7 +428,10 @@ fig.add_trace(
 )
 
 
+# ------------------------------------------
 # 전체 기간 회귀 직선
+# ------------------------------------------
+
 line_x = np.array(
     [1900, 2100],
     dtype=float
@@ -486,6 +442,7 @@ line_y_all = (
     + intercept_all
 )
 
+
 fig.add_trace(
     go.Scatter(
         x=line_x,
@@ -494,7 +451,7 @@ fig.add_trace(
         name="전체 기간 회귀 직선",
 
         hovertemplate=
-            "전체 기간 예상값: %{y:.2f} °C"
+            "예상 연평균기온: %{y:.2f} °C"
             "<extra></extra>",
 
         line=dict(
@@ -504,7 +461,10 @@ fig.add_trace(
 )
 
 
+# ------------------------------------------
 # 최근 20년 회귀 직선
+# ------------------------------------------
+
 if not np.isnan(slope_recent):
 
     recent_line_x = np.array(
@@ -536,12 +496,14 @@ if not np.isnan(slope_recent):
     )
 
 
+# ------------------------------------------
 # 선택한 연도의 예상값
+# ------------------------------------------
+
 fig.add_trace(
     go.Scatter(
         x=[selected_year],
         y=[selected_temp],
-
         mode="markers",
 
         name=f"{selected_year}년 예상값",
@@ -560,7 +522,10 @@ fig.add_trace(
 )
 
 
+# ==========================================
 # 그래프 설정
+# ==========================================
+
 fig.update_layout(
     title="서울 연도별 평균기온과 회귀 직선",
 
@@ -590,11 +555,11 @@ st.plotly_chart(
 )
 
 
-# -----------------------------
-# 회귀 분석 결과
-# -----------------------------
+# ==========================================
+# 회귀식
+# ==========================================
 
-st.subheader("📐 회귀 분석 결과")
+st.header("📐 회귀 분석 결과")
 
 st.write("전체 기간 회귀식")
 
@@ -617,17 +582,17 @@ st.write(
 )
 
 
-# -----------------------------
+# ==========================================
 # 데이터 처리 기준
-# -----------------------------
+# ==========================================
 
-st.subheader("📌 데이터 처리 기준")
+st.header("📋 데이터 처리 기준")
 
 st.write(
     f"""
-    - 기준 기간: **{CUTOFF_YEAR}년까지**
-    - {CUTOFF_YEAR}년 이후 자료: **제외**
-    - 관측일수가 **{MIN_DAYS}일 미만인 연도: 제외**
+    - 기준 기간: **2025년까지**
+    - 2025년 이후 자료: **제외**
+    - 관측일수가 **300일 미만인 연도: 제외**
     - 연평균기온: 해당 연도의 일평균기온 평균
     - 전체 기간 회귀: 조건을 만족한 모든 연도 사용
     - 최근 20년 회귀: **{recent_start_year}년 ~ {end_year}년**
@@ -635,16 +600,17 @@ st.write(
 )
 
 
-# -----------------------------
-# 연도별 데이터 표
-# -----------------------------
+# ==========================================
+# 연도별 데이터
+# ==========================================
 
 with st.expander("📋 연도별 데이터 보기"):
 
     display_df = yearly.copy()
 
     display_df["연평균기온"] = (
-        display_df["연평균기온"].round(2)
+        display_df["연평균기온"]
+        .round(2)
     )
 
     display_df = display_df.rename(
@@ -662,9 +628,9 @@ with st.expander("📋 연도별 데이터 보기"):
     )
 
 
-# -----------------------------
+# ==========================================
 # 주의사항
-# -----------------------------
+# ==========================================
 
 st.caption(
     "※ 예상 기온은 과거 연평균기온과 연도의 선형 관계를 이용한 "
